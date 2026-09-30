@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // System Settings (bKash/Nagad/Rocket numbers, fees)
+    // Public read so applicants see the Admin-configured payment numbers
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Job Circulars: Public read, write by companies and admin
+    match /jobs/{jobId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Companies: Public read, creation and management by admin
+    match /companies/{companyId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Applications & CVs: Read by applicant and companies, write by applicant
+    match /applications/{applicationId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if true;
+    }
+
+    // Users and Seekers
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Payment Transactions
+    match /transactions/{transactionId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Categories
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Audit logs
+    match /audit_logs/{logId} {
+      allow read, write: if true;
+    }
+  }
+}

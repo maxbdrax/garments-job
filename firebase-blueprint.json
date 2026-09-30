@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "SystemSetting": {
+      "title": "SystemSetting",
+      "description": "Global application configuration including merchant numbers and fees",
+      "type": "object",
+      "properties": {
+        "bKashMerchantNumber": { "type": "string", "description": "Admin configured bKash payment number" },
+        "nagadMerchantNumber": { "type": "string", "description": "Admin configured Nagad payment number" },
+        "rocketMerchantNumber": { "type": "string", "description": "Admin configured Rocket payment number" },
+        "bKashAccountType": { "type": "string", "description": "Merchant or Personal Send Money" },
+        "nagadAccountType": { "type": "string", "description": "Merchant or Personal Send Money" },
+        "rocketAccountType": { "type": "string", "description": "Merchant or Personal Send Money" },
+        "platformCommissionPercent": { "type": "number", "description": "Platform fee percentage" },
+        "gatewayFeePercent": { "type": "number", "description": "Gateway fee percentage" },
+        "minApplicationFee": { "type": "number", "description": "Minimum allowed fee" },
+        "maxApplicationFee": { "type": "number", "description": "Maximum allowed fee" },
+        "siteNameBn": { "type": "string", "description": "Site name in Bengali" },
+        "siteNameEn": { "type": "string", "description": "Site name in English" },
+        "supportPhone": { "type": "string", "description": "Support hotline" }
+      },
+      "required": ["bKashMerchantNumber", "nagadMerchantNumber", "rocketMerchantNumber"]
+    },
+    "Job": {
+      "title": "Job",
+      "description": "Garments factory job circular",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Job title" },
+        "companyId": { "type": "string", "description": "Company ID" },
+        "companyName": { "type": "string", "description": "Company Name" },
+        "category": { "type": "string", "description": "Garments Category" },
+        "department": { "type": "string", "description": "Department" },
+        "vacancies": { "type": "number", "description": "Vacancies count" },
+        "salaryMin": { "type": "number", "description": "Minimum salary" },
+        "salaryMax": { "type": "number", "description": "Maximum salary" },
+        "district": { "type": "string", "description": "District" },
+        "factoryLocation": { "type": "string", "description": "Factory location" },
+        "applicationFee": { "type": "number", "description": "Application fee" },
+        "applicationDeadline": { "type": "string", "description": "Deadline" },
+        "status": { "type": "string", "description": "active or expired" }
+      },
+      "required": ["title", "companyId", "category", "salaryMin"]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "Registered Garments Factory account created by Admin",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Company Name" },
+        "email": { "type": "string", "description": "Company Login Email" },
+        "phone": { "type": "string", "description": "Contact phone" },
+        "factoryLocation": { "type": "string", "description": "Factory location" },
+        "district": { "type": "string", "description": "District" },
+        "tradeLicenseNumber": { "type": "string", "description": "Trade license" },
+        "businessType": { "type": "string", "description": "Business Type" },
+        "isVerified": { "type": "boolean", "description": "Admin verified status" },
+        "accessCode": { "type": "string", "description": "Secret access password provided by Admin" }
+      },
+      "required": ["name", "email", "factoryLocation", "district"]
+    },
+    "Application": {
+      "title": "Application",
+      "description": "Job application submitted by seeker with full CV and payment TrxID",
+      "type": "object",
+      "properties": {
+        "jobId": { "type": "string", "description": "Job circular ID" },
+        "jobTitle": { "type": "string", "description": "Job title" },
+        "companyId": { "type": "string", "description": "Company ID" },
+        "companyName": { "type": "string", "description": "Company name" },
+        "applicantId": { "type": "string", "description": "Applicant user ID" },
+        "applicantName": { "type": "string", "description": "Applicant full name" },
+        "applicantPhone": { "type": "string", "description": "Applicant phone" },
+        "paymentMethod": { "type": "string", "description": "bkash, nagad, rocket or free" },
+        "paymentTrxId": { "type": "string", "description": "User provided transaction ID" },
+        "paymentSenderPhone": { "type": "string", "description": "Payment sender phone number" },
+        "totalPaid": { "type": "number", "description": "Amount paid" },
+        "paymentStatus": { "type": "string", "description": "paid or pending or waived" },
+        "status": { "type": "string", "description": "applied, shortlisted, interview, selected, rejected" },
+        "appliedDate": { "type": "string", "description": "Date of application" }
+      },
+      "required": ["jobId", "applicantName", "applicantPhone"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Seeker or Company or Admin user",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "description": "Email" },
+        "phone": { "type": "string", "description": "Phone" },
+        "role": { "type": "string", "description": "applicant or company or super_admin" },
+        "nidNumber": { "type": "string", "description": "National ID" },
+        "district": { "type": "string", "description": "District" }
+      },
+      "required": ["name", "role"]
+    }
+  },
+  "firestore": {
+    "/settings/{settingId}": {
+      "schema": { "$ref": "entities/SystemSetting" },
+      "description": "System settings such as payment gateway numbers"
+    },
+    "/jobs/{jobId}": {
+      "schema": { "$ref": "entities/Job" },
+      "description": "Garments job circulars"
+    },
+    "/companies/{companyId}": {
+      "schema": { "$ref": "entities/Company" },
+      "description": "Garments factories created by Admin"
+    },
+    "/applications/{applicationId}": {
+      "schema": { "$ref": "entities/Application" },
+      "description": "Job applications with payment and full CV data"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "entities/User" },
+      "description": "User accounts"
+    }
+  }
+}

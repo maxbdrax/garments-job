@@ -1,0 +1,6 @@
+{
+  "name": "GarmentsNiyog - Bangladesh Garments & Textile Job Portal",
+  "description": "Comprehensive recruitment & circular platform for Bangladesh garment factories, textile mills, merchandisers, operators, and applicants.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
