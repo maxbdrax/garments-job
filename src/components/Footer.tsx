@@ -1,9 +1,10 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { ShieldCheck, Phone, Mail, MapPin, Heart, AlertTriangle, Globe } from 'lucide-react';
+import { Logo } from './Logo';
 
 export const Footer: React.FC = () => {
-  const { lang, setLang, setActiveView } = useApp();
+  const { lang, setLang, setActiveView, setShowAuthModal, setAuthMode, currentUser } = useApp();
 
   return (
     <footer className="no-print bg-slate-950 text-slate-300 border-t border-slate-800 text-xs mt-20">
@@ -33,14 +34,7 @@ export const Footer: React.FC = () => {
           
           {/* Brand Info */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold">
-                GN
-              </div>
-              <span className="text-lg font-black text-white tracking-tight">
-                Garments<span className="text-emerald-500">Niyog</span>
-              </span>
-            </div>
+            <Logo size="md" variant="light" />
             <p className="text-slate-400 text-xs leading-relaxed">
               বাংলাদেশের তৈরি পোশাক (RMG), টেক্সটাইল, ডেনিম এবং নিটওয়্যার শিল্পের সকল গ্রেডের কর্মী ও কর্মকর্তাদের জন্য আধুনিক এবং স্বচ্ছ ডিজিটাল প্ল্যাটফর্ম।
             </p>
@@ -122,13 +116,28 @@ export const Footer: React.FC = () => {
             © {new Date().getFullYear()} GarmentsNiyog BD Ltd. সর্বস্বত্ব সংরক্ষিত।
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center flex-wrap gap-3 sm:gap-4">
             <span className="hover:text-slate-400 cursor-pointer">ব্যবহারের শর্তাবলী</span>
             <span>·</span>
             <span className="hover:text-slate-400 cursor-pointer">গোপনীয়তা নীতি</span>
             <span>·</span>
             <span className="hover:text-slate-400 cursor-pointer">রিফান্ড ও পেমেন্ট রুলস</span>
             <span>·</span>
+            {!currentUser && (
+              <>
+                <button 
+                  onClick={() => {
+                    setAuthMode('login');
+                    setShowAuthModal(true);
+                  }}
+                  className="text-slate-400 hover:text-emerald-400 font-medium flex items-center gap-1 transition-colors"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>কর্মকর্তা / অ্যাডমিন প্রবেশ</span>
+                </button>
+                <span>·</span>
+              </>
+            )}
             <span className="hover:text-slate-400 cursor-pointer">বিজিএমইএ নির্দেশিকা</span>
           </div>
         </div>

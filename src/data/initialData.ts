@@ -740,5 +740,7 @@ export const INITIAL_SETTINGS: SystemSettings = {
   siteNameEn: 'GarmentsNiyog',
   siteNameBn: 'গার্মেন্টসনিয়োগ',
   supportPhone: '+880 9612-445566',
-  supportEmail: 'support@garmentsniyog.com.bd'
+  supportEmail: 'support@garmentsniyog.com.bd',
+  adminUsername: 'admin',
+  adminSecretPassword: 'Admin@Garments2026!'
 };

@@ -33,6 +33,7 @@ import {
 
 const MainContent: React.FC = () => {
   const { 
+    currentUser,
     role, 
     lang, 
     t, 
@@ -46,7 +47,9 @@ const MainContent: React.FC = () => {
     applyingJob,
     setApplyingJob,
     showCvModal,
-    setShowCvModal
+    setShowCvModal,
+    setShowAuthModal,
+    setAuthMode
   } = useApp();
 
   // Search parameters when transferring from Hero to Jobs View
@@ -59,6 +62,19 @@ const MainContent: React.FC = () => {
   const handleHeroSearch = (filters: { query: string; category: string; district: string }) => {
     setSearchParams(filters);
     setActiveView('jobs');
+  };
+
+  const handleApplyJob = (j: JobCircular) => {
+    if (!currentUser) {
+      setAuthMode('register');
+      setShowAuthModal(true);
+      return;
+    }
+    if (currentUser.role !== 'applicant') {
+      alert('চাকরি আবেদনের জন্য অনুগ্রহ করে চাকরিপ্রার্থী হিসেবে একাউন্টে প্রবেশ করুন।');
+      return;
+    }
+    setApplyingJob(j);
   };
 
   const urgentJobs = jobs.filter(j => j.isUrgent && j.status === 'active');
@@ -108,7 +124,7 @@ const MainContent: React.FC = () => {
                       key={job.id}
                       job={job}
                       onSelect={(j) => setSelectedJob(j)}
-                      onApply={(j) => setApplyingJob(j)}
+                      onApply={(j) => handleApplyJob(j)}
                     />
                   ))}
                 </div>
@@ -147,7 +163,7 @@ const MainContent: React.FC = () => {
                     key={job.id}
                     job={job}
                     onSelect={(j) => setSelectedJob(j)}
-                    onApply={(j) => setApplyingJob(j)}
+                    onApply={(j) => handleApplyJob(j)}
                   />
                 ))}
               </div>
@@ -211,7 +227,7 @@ const MainContent: React.FC = () => {
             initialDistrict={searchParams.district}
             initialQuery={searchParams.query}
             onSelectJob={(j) => setSelectedJob(j)}
-            onApplyJob={(j) => setApplyingJob(j)}
+            onApplyJob={(j) => handleApplyJob(j)}
           />
         )}
 
@@ -264,7 +280,7 @@ const MainContent: React.FC = () => {
           onClose={() => setSelectedJob(null)}
           onApply={(j) => {
             setSelectedJob(null);
-            setApplyingJob(j);
+            handleApplyJob(j);
           }}
         />
       )}

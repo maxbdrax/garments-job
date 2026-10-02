@@ -143,12 +143,6 @@ export const ApplicationFlowModal: React.FC<ApplicationFlowModalProps> = ({ job,
     }
   };
 
-  const setDemoTrxId = () => {
-    const demo = `${paymentMethod.toUpperCase().slice(0, 2)}${Math.floor(10000000 + Math.random() * 90000000)}`;
-    setTrxId(demo);
-    setSenderPhone(applicantProfile.phone);
-  };
-
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div className="relative bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden animate-in fade-in duration-200">
@@ -400,16 +394,9 @@ export const ApplicationFlowModal: React.FC<ApplicationFlowModalProps> = ({ job,
                   />
                 </div>
 
-                {/* Sandbox Demo helper */}
+                {/* SMS TrxID helper notice */}
                 <div className="pt-1 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>* এসএমএস থেকে প্রাপ্ত TrxID লিখুন</span>
-                  <button
-                    type="button"
-                    onClick={setDemoTrxId}
-                    className="text-emerald-700 font-semibold hover:underline"
-                  >
-                    টেস্ট ডেমো TrxID বসান
-                  </button>
+                  <span className="text-emerald-700 font-medium">* টাকা সফলভাবে পাঠানোর পর আসা ফিরতি SMS থেকে TrxID দেখে সঠিকভাবে লিখুন</span>
                 </div>
               </div>
 

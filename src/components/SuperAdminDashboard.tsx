@@ -87,6 +87,8 @@ export const SuperAdminDashboard: React.FC = () => {
   const [nagadType, setNagadType] = useState(settings.nagadAccountType || 'Personal (সেন্ড মানি)');
   const [rocketType, setRocketType] = useState(settings.rocketAccountType || 'Personal (সেন্ড মানি)');
   const [payInstructions, setPayInstructions] = useState(settings.paymentInstructions || '');
+  const [adminUserField, setAdminUserField] = useState(settings.adminUsername || 'admin');
+  const [adminPassField, setAdminPassField] = useState(settings.adminSecretPassword || 'Admin@Garments2026!');
   const [settingsSaved, setSettingsSaved] = useState(false);
 
   // Revenue calculations
@@ -111,7 +113,9 @@ export const SuperAdminDashboard: React.FC = () => {
       bKashAccountType: bkashType,
       nagadAccountType: nagadType,
       rocketAccountType: rocketType,
-      paymentInstructions: payInstructions
+      paymentInstructions: payInstructions,
+      adminUsername: adminUserField.trim(),
+      adminSecretPassword: adminPassField.trim()
     });
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 2500);
@@ -638,6 +642,44 @@ export const SuperAdminDashboard: React.FC = () => {
                 onChange={(e) => setPayInstructions(e.target.value)}
                 className="w-full p-2.5 border border-slate-200 rounded-lg text-xs"
               />
+            </div>
+
+            {/* Admin Secret Login Credentials Management */}
+            <div className="p-4 rounded-xl border border-purple-200 bg-purple-50/60 space-y-3">
+              <div className="font-bold text-sm text-purple-900 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-purple-700" />
+                  <span>সুপার অ্যাডমিন সিক্রেট লগইন ক্রেডেনশিয়াল (Admin Secret Login):</span>
+                </span>
+                <span className="text-[10px] bg-purple-100 text-purple-800 font-mono px-2 py-0.5 rounded">
+                  শুধুমাত্র অ্যাডমিনের জন্য গোপনীয়
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                এই ইউজারনেম এবং পাসওয়ার্ড দিয়ে শুধুমাত্র আপনি সুপার অ্যাডমিন প্যানেলে লগইন করতে পারবেন। এটি সাধারণ ব্যবহারকারী বা কোম্পানিদের থেকে সম্পূর্ণ গোপন থাকে।
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">অ্যাডমিন ইউজারনেম (Username):</label>
+                  <input
+                    type="text"
+                    required
+                    value={adminUserField}
+                    onChange={(e) => setAdminUserField(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-xs font-mono font-bold bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">অ্যাডমিন সিক্রেট পাসওয়ার্ড (Secret Password):</label>
+                  <input
+                    type="text"
+                    required
+                    value={adminPassField}
+                    onChange={(e) => setAdminPassField(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-xs font-mono font-bold bg-white"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="pt-3 border-t border-slate-200 flex justify-end">

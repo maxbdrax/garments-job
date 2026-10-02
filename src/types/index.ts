@@ -1,5 +1,16 @@
 export type UserRole = 'super_admin' | 'company' | 'applicant';
 
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: UserRole;
+  companyId?: string;
+  avatar?: string;
+  createdAt: string;
+}
+
 export type VerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspended';
 
 export type JobStatus = 'active' | 'pending' | 'expired' | 'suspended';
@@ -278,4 +289,6 @@ export interface SystemSettings {
   siteNameBn: string;
   supportPhone: string;
   supportEmail: string;
+  adminUsername: string;
+  adminSecretPassword: string;
 }

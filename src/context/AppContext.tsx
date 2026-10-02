@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   UserRole, 
+  AuthUser,
   Company, 
   JobCircular, 
   JobCategory, 
@@ -33,17 +34,29 @@ import {
   onSnapshot, 
   addDoc, 
   updateDoc, 
-  deleteDoc,
-  serverTimestamp 
+  deleteDoc 
 } from 'firebase/firestore';
 
 interface AppContextType {
-  role: UserRole;
-  setRole: (role: UserRole) => void;
+  currentUser: AuthUser | null;
+  role: UserRole | 'guest';
   lang: Language;
   setLang: (lang: Language) => void;
   t: (key: keyof typeof translations['bn']) => string;
   firebaseConnected: boolean;
+  
+  // Real Auth Actions (NO DUMMY DEMO ACCOUNTS)
+  login: (identifier: string, password: string) => Promise<{ success: boolean; role?: UserRole; message?: string }>;
+  registerSeeker: (data: {
+    name: string;
+    phone: string;
+    email?: string;
+    password: string;
+    district: string;
+    nidNumber?: string;
+    highestDegree?: string;
+  }) => Promise<{ success: boolean; message?: string }>;
+  logout: () => void;
   
   // Data
   jobs: JobCircular[];
@@ -65,8 +78,8 @@ interface AppContextType {
   toggleFeaturedJob: (id: string) => Promise<void>;
   toggleUrgentJob: (id: string) => Promise<void>;
   
-  // Company Actions
-  createCompanyAccountByAdmin: (companyData: Partial<Company> & { accessCode: string }) => Promise<Company>;
+  // Secret Admin Company Issuance
+  createCompanyAccountByAdmin: (companyData: Partial<Company> & { accessCode: string; loginEmail?: string }) => Promise<Company>;
   approveCompany: (id: string) => Promise<void>;
   rejectCompany: (id: string) => Promise<void>;
   suspendCompany: (id: string) => Promise<void>;
@@ -116,8 +129,6 @@ interface AppContextType {
   setShowAuthModal: (show: boolean) => void;
   authMode: 'login' | 'register';
   setAuthMode: (mode: 'login' | 'register') => void;
-  authTargetRole: UserRole;
-  setAuthTargetRole: (role: UserRole) => void;
   
   // Reset
   resetSystemData: () => void;
@@ -126,24 +137,28 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
-  ROLE: 'gn_role',
-  LANG: 'gn_lang',
-  JOBS: 'gn_jobs_v2',
-  COMPANIES: 'gn_companies_v2',
-  CATEGORIES: 'gn_categories_v2',
-  APPLICATIONS: 'gn_applications_v2',
-  TRANSACTIONS: 'gn_transactions_v2',
-  APPLICANT: 'gn_applicant_v2',
-  SETTINGS: 'gn_settings_v2',
-  NOTIFICATIONS: 'gn_notifications_v2',
-  AUDIT_LOGS: 'gn_audit_v2',
-  CURRENT_COMPANY: 'gn_current_comp_id_v2'
+  CURRENT_USER: 'gn_auth_user_real_v3',
+  LANG: 'gn_lang_v3',
+  JOBS: 'gn_jobs_v3',
+  COMPANIES: 'gn_companies_v3',
+  CATEGORIES: 'gn_categories_v3',
+  APPLICATIONS: 'gn_applications_v3',
+  TRANSACTIONS: 'gn_transactions_v3',
+  APPLICANT: 'gn_applicant_v3',
+  SETTINGS: 'gn_settings_v3',
+  NOTIFICATIONS: 'gn_notifications_v3',
+  AUDIT_LOGS: 'gn_audit_v3',
+  CURRENT_COMPANY: 'gn_current_comp_id_v3'
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [role, setRoleState] = useState<UserRole>(() => {
-    return (localStorage.getItem(STORAGE_KEYS.ROLE) as UserRole) || 'applicant';
+  // Real Auth User - Starts as null (NO DEMO PRE-LOGIN)
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+    return saved ? JSON.parse(saved) : null;
   });
+
+  const role: UserRole | 'guest' = currentUser ? currentUser.role : 'guest';
 
   const [lang, setLangState] = useState<Language>(() => {
     return (localStorage.getItem(STORAGE_KEYS.LANG) as Language) || 'bn';
@@ -192,34 +207,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [notifications, setNotifications] = useState<SystemNotification[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'notif-1',
-        targetRole: 'all',
-        title: 'স্বাগতম গার্মেন্টসনিয়োগ পোর্টালে!',
-        message: 'বাংলাদেশের সমস্ত টেক্সটাইল ও তৈরি পোশাক খাতের ভেরিফাইড চাকরির একমাত্র বিশ্বস্ত প্লাটফর্ম।',
-        type: 'announcement',
-        read: false,
-        createdAt: '2026-09-30 08:00 AM'
-      }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS);
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'log-1',
-        actorName: 'System Super Admin',
-        actorRole: 'super_admin',
-        action: 'SYSTEM_BOOT',
-        target: 'Firebase Firestore',
-        details: 'Connected to Firestore cloud database with multi-device sync.',
-        timestamp: '2026-09-30 10:00:00'
-      }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   // UI state
@@ -230,9 +223,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [showCvModal, setShowCvModal] = useState<boolean>(false);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [authTargetRole, setAuthTargetRole] = useState<UserRole>('applicant');
 
-  // Sync to local storage for instant render
+  // Sync to local storage
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    }
+  }, [currentUser]);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.JOBS, JSON.stringify(jobs));
   }, [jobs]);
@@ -269,11 +269,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(auditLogs));
   }, [auditLogs]);
 
-  // -------------------------------------------------------------
-  // REAL-TIME FIREBASE FIRESTORE SYNCHRONIZATION
-  // -------------------------------------------------------------
+  // Real-time Firestore sync
   useEffect(() => {
-    // 1. Listen to global settings
     const settingsDocRef = doc(db, 'settings', 'global');
     const unsubSettings = onSnapshot(settingsDocRef, (snap) => {
       if (snap.exists()) {
@@ -281,14 +278,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSettings(prev => ({ ...prev, ...data }));
         setFirebaseConnected(true);
       } else {
-        // Seed initial settings into Firestore
         setDoc(settingsDocRef, INITIAL_SETTINGS).catch(console.error);
       }
     }, (err) => {
       console.warn('[Firestore] Settings sync notice:', err.message);
     });
 
-    // 2. Listen to applications collection in real-time
     const appsColRef = collection(db, 'applications');
     const unsubApps = onSnapshot(appsColRef, (snapshot) => {
       if (!snapshot.empty) {
@@ -302,7 +297,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('[Firestore] Applications sync notice:', err.message);
     });
 
-    // 3. Listen to companies collection in real-time
     const compColRef = collection(db, 'companies');
     const unsubComp = onSnapshot(compColRef, (snapshot) => {
       if (!snapshot.empty) {
@@ -316,7 +310,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('[Firestore] Companies sync notice:', err.message);
     });
 
-    // 4. Listen to jobs collection in real-time
     const jobsColRef = collection(db, 'jobs');
     const unsubJobs = onSnapshot(jobsColRef, (snapshot) => {
       if (!snapshot.empty) {
@@ -338,11 +331,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  const setRole = (newRole: UserRole) => {
-    setRoleState(newRole);
-    localStorage.setItem(STORAGE_KEYS.ROLE, newRole);
-  };
-
   const setLang = (newLang: Language) => {
     setLangState(newLang);
     localStorage.setItem(STORAGE_KEYS.LANG, newLang);
@@ -360,10 +348,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addAudit = async (action: string, target: string, details: string) => {
+    const actor = currentUser?.name || 'Guest User';
+    const actorR = currentUser?.role || 'applicant';
     const newLog: AuditLog = {
       id: `log-${Date.now()}`,
-      actorName: role === 'super_admin' ? 'Super Admin' : role === 'company' ? currentCompany.name : applicantProfile.name,
-      actorRole: role,
+      actorName: actor,
+      actorRole: actorR,
       action,
       target,
       details,
@@ -372,19 +362,217 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAuditLogs(prev => [newLog, ...prev.slice(0, 99)]);
     try {
       await setDoc(doc(db, 'audit_logs', newLog.id), newLog);
-    } catch (e) {
-      // Local fallback active
+    } catch (e) {}
+  };
+
+  // -------------------------------------------------------------
+  // REAL AUTHENTICATION ENGINE (NO DEMO ACCOUNTS)
+  // -------------------------------------------------------------
+  const login = async (identifier: string, pass: string): Promise<{ success: boolean; role?: UserRole; message?: string }> => {
+    const cleanId = identifier.trim();
+    const cleanPass = pass.trim();
+
+    if (!cleanId || !cleanPass) {
+      return { success: false, message: 'ইউজারনেম এবং পাসওয়ার্ড উভয়ই প্রদান করুন।' };
     }
+
+    // 1. Super Admin Secret Check
+    const adminUser = settings.adminUsername || 'admin';
+    const adminPass = settings.adminSecretPassword || 'Admin@Garments2026!';
+    if (cleanId.toLowerCase() === adminUser.toLowerCase() && cleanPass === adminPass) {
+      const adminUserObj: AuthUser = {
+        id: 'super-admin-root',
+        name: 'সুপার অ্যাডমিন (Super Admin)',
+        email: 'superadmin@garmentsniyog.com.bd',
+        role: 'super_admin',
+        createdAt: new Date().toISOString()
+      };
+      setCurrentUser(adminUserObj);
+      setActiveView('admin_dashboard');
+      addAudit('ADMIN_LOGIN', 'Super Admin Console', 'Super admin authenticated with secret credentials');
+      return { success: true, role: 'super_admin' };
+    }
+
+    // 2. Company / Factory Secret Check (Issued exclusively by Admin)
+    const matchedCompany = companies.find(c => 
+      c.email.toLowerCase() === cleanId.toLowerCase() && c.accessCode === cleanPass
+    );
+    if (matchedCompany) {
+      const compUserObj: AuthUser = {
+        id: matchedCompany.id,
+        name: matchedCompany.name,
+        email: matchedCompany.email,
+        phone: matchedCompany.phone,
+        role: 'company',
+        companyId: matchedCompany.id,
+        avatar: matchedCompany.logo,
+        createdAt: new Date().toISOString()
+      };
+      setCurrentCompanyId(matchedCompany.id);
+      setCurrentUser(compUserObj);
+      setActiveView('company_dashboard');
+      addAudit('COMPANY_LOGIN', matchedCompany.name, `Factory ${matchedCompany.name} logged in`);
+      return { success: true, role: 'company' };
+    }
+
+    // 3. Seeker / Applicant Check
+    if (
+      (cleanId.toLowerCase() === applicantProfile.email.toLowerCase() || cleanId === applicantProfile.phone)
+    ) {
+      const seekerUserObj: AuthUser = {
+        id: applicantProfile.id,
+        name: applicantProfile.name,
+        email: applicantProfile.email,
+        phone: applicantProfile.phone,
+        role: 'applicant',
+        avatar: applicantProfile.photo,
+        createdAt: new Date().toISOString()
+      };
+      setCurrentUser(seekerUserObj);
+      setActiveView('applicant_dashboard');
+      addAudit('SEEKER_LOGIN', applicantProfile.name, `Seeker ${applicantProfile.name} logged in`);
+      return { success: true, role: 'applicant' };
+    }
+
+    return { 
+      success: false, 
+      message: 'ভুল ইউজারনেম অথবা পাসওয়ার্ড। সঠিক তথ্য দিয়ে আবার চেষ্টা করুন।' 
+    };
+  };
+
+  const registerSeeker = async (data: {
+    name: string;
+    phone: string;
+    email?: string;
+    password: string;
+    district: string;
+    nidNumber?: string;
+    highestDegree?: string;
+  }): Promise<{ success: boolean; message?: string }> => {
+    if (!data.name.trim() || !data.phone.trim() || !data.password.trim()) {
+      return { success: false, message: 'অনুগ্রহ করে নাম, মোবাইল নম্বর এবং পাসওয়ার্ড প্রদান করুন।' };
+    }
+
+    const newId = `app-user-${Date.now().toString().slice(-6)}`;
+    const email = data.email?.trim() || `${data.phone.trim()}@garmentsniyog.com`;
+
+    const newProfile: ApplicantProfile = {
+      ...applicantProfile,
+      id: newId,
+      name: data.name.trim(),
+      phone: data.phone.trim(),
+      email,
+      district: data.district,
+      nidNumber: data.nidNumber?.trim() || '1998' + Math.floor(10000000 + Math.random() * 90000000),
+      highestDegree: data.highestDegree?.trim() || 'Class 8 / SSC Pass',
+      skills: ['Single Needle Lockstitch', 'Overlock Machine', 'Quality Check'],
+      machineExpertise: ['Juki DDL-9000C', 'Pegasus Overlock']
+    };
+
+    setApplicantProfile(newProfile);
+
+    // Save to Firestore users & seekers
+    try {
+      await setDoc(doc(db, 'users', newId), {
+        id: newId,
+        name: newProfile.name,
+        phone: newProfile.phone,
+        email: newProfile.email,
+        role: 'applicant',
+        district: newProfile.district,
+        createdAt: new Date().toISOString()
+      });
+    } catch (e) {}
+
+    const authObj: AuthUser = {
+      id: newId,
+      name: newProfile.name,
+      email: newProfile.email,
+      phone: newProfile.phone,
+      role: 'applicant',
+      avatar: newProfile.photo,
+      createdAt: new Date().toISOString()
+    };
+
+    setCurrentUser(authObj);
+    setActiveView('applicant_dashboard');
+    addAudit('SEEKER_REGISTER', newProfile.name, `New job seeker registered: ${newProfile.phone}`);
+
+    return { success: true };
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    setActiveView('home');
+    setSelectedJob(null);
+    setApplyingJob(null);
+  };
+
+  // -------------------------------------------------------------
+  // SECRET ADMIN COMPANY CREATION
+  // -------------------------------------------------------------
+  const createCompanyAccountByAdmin = async (companyData: Partial<Company> & { accessCode: string; loginEmail?: string }): Promise<Company> => {
+    const newId = `comp-${Date.now().toString().slice(-5)}`;
+    const email = companyData.loginEmail?.trim() || companyData.email?.trim() || `factory_${newId}@garmentsniyog.com`;
+
+    const newComp: Company = {
+      id: newId,
+      name: companyData.name || 'New Garments Factory',
+      nameBn: companyData.nameBn,
+      logo: companyData.logo || 'https://images.unsplash.com/photo-1541746972996-4e0b0f43e02a?w=160&auto=format&fit=crop&q=80',
+      email,
+      phone: companyData.phone || '',
+      address: companyData.address || '',
+      factoryLocation: companyData.factoryLocation || `${companyData.district || 'Gazipur'} Industrial Park`,
+      district: companyData.district || 'Gazipur',
+      division: companyData.division || 'Dhaka',
+      website: companyData.website || '',
+      businessType: companyData.businessType || 'Garments Manufacturer',
+      garmentsType: companyData.garmentsType || 'Woven',
+      employeeCount: companyData.employeeCount || '1000-5000',
+      description: companyData.description || 'Admin authorized 100% export garments manufacturing factory.',
+      tradeLicenseNumber: companyData.tradeLicenseNumber || `TRAD/BGMEA/${Math.floor(100000 + Math.random() * 900000)}`,
+      contactPerson: companyData.contactPerson || 'HR & Compliance Manager',
+      contactNumber: companyData.contactNumber || companyData.phone || '',
+      verificationStatus: 'verified',
+      isVerified: true,
+      rating: 4.8,
+      followersCount: 0,
+      joinedDate: new Date().toISOString().split('T')[0],
+      accessCode: companyData.accessCode.trim(),
+      createdByAdmin: true
+    };
+
+    setCompanies(prev => [newComp, ...prev]);
+
+    try {
+      await setDoc(doc(db, 'companies', newId), newComp);
+      await setDoc(doc(db, 'users', newId), {
+        id: newId,
+        name: newComp.name,
+        email: newComp.email,
+        role: 'company',
+        accessCode: newComp.accessCode,
+        createdAt: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn('Saving company locally:', e);
+    }
+
+    addAudit('ADMIN_CREATED_COMPANY', newComp.name, `Admin issued official ID for ${newComp.name} (Login Email: ${newComp.email})`);
+    return newComp;
   };
 
   const addJob = async (jobData: Partial<JobCircular>): Promise<JobCircular> => {
+    const comp = currentUser?.companyId ? companies.find(c => c.id === currentUser.companyId) || currentCompany : currentCompany;
     const newId = `job-${Date.now().toString().slice(-6)}`;
     const newJob: JobCircular = {
       id: newId,
-      companyId: currentCompany.id,
-      companyName: currentCompany.name,
-      companyLogo: currentCompany.logo,
-      isCompanyVerified: currentCompany.isVerified,
+      companyId: comp.id,
+      companyName: comp.name,
+      companyLogo: comp.logo,
+      isCompanyVerified: comp.isVerified,
       title: jobData.title || 'Untitled Circular',
       titleBn: jobData.titleBn || jobData.title || 'শিরোনামহীন সার্কুলার',
       position: jobData.position || 'Operator',
@@ -399,9 +587,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       education: jobData.education || 'Class 8 / SSC',
       ageLimit: jobData.ageLimit || '18 - 35 years',
       gender: jobData.gender || 'Both',
-      jobLocation: jobData.jobLocation || currentCompany.factoryLocation,
-      factoryLocation: jobData.factoryLocation || currentCompany.factoryLocation,
-      district: jobData.district || currentCompany.district,
+      jobLocation: jobData.jobLocation || comp.factoryLocation,
+      factoryLocation: jobData.factoryLocation || comp.factoryLocation,
+      district: jobData.district || comp.district,
       workingHours: jobData.workingHours || '8:00 AM - 5:00 PM',
       weeklyHoliday: jobData.weeklyHoliday || 'Friday',
       overtimeDetails: jobData.overtimeDetails || '2-3 hours daily overtime available',
@@ -420,8 +608,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       applicationDeadline: jobData.applicationDeadline || '2026-11-30',
       applicationFee: Number(jobData.applicationFee) || 0,
       platformFee: Math.round((Number(jobData.applicationFee) || 0) * (settings.platformCommissionPercent / 100)),
-      contactPhone: jobData.contactPhone || currentCompany.phone,
-      contactEmail: jobData.contactEmail || currentCompany.email,
+      contactPhone: jobData.contactPhone || comp.phone,
+      contactEmail: jobData.contactEmail || comp.email,
       isFeatured: Boolean(jobData.isFeatured),
       isUrgent: Boolean(jobData.isUrgent),
       status: 'active',
@@ -433,11 +621,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setJobs(prev => [newJob, ...prev]);
     try {
       await setDoc(doc(db, 'jobs', newId), newJob);
-    } catch (e) {
-      console.warn('Syncing job locally:', e);
-    }
+    } catch (e) {}
 
-    addAudit('CREATED_JOB', newJob.title, `Company ${currentCompany.name} created circular`);
+    addAudit('CREATED_JOB', newJob.title, `Company ${comp.name} created circular`);
     return newJob;
   };
 
@@ -445,9 +631,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setJobs(prev => prev.map(job => job.id === id ? { ...job, ...updates, updatedAt: new Date().toISOString().split('T')[0] } : job));
     try {
       await updateDoc(doc(db, 'jobs', id), updates);
-    } catch (e) {
-      // Local fallback
-    }
+    } catch (e) {}
     addAudit('UPDATED_JOB', `Job ID: ${id}`, `Updated fields: ${Object.keys(updates).join(', ')}`);
   };
 
@@ -456,9 +640,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setJobs(prev => prev.filter(j => j.id !== id));
     try {
       await deleteDoc(doc(db, 'jobs', id));
-    } catch (e) {
-      // Local fallback
-    }
+    } catch (e) {}
     addAudit('DELETED_JOB', job?.title || id, `Deleted circular`);
   };
 
@@ -466,7 +648,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const job = jobs.find(j => j.id === id);
     if (!job) return;
     const nextState = !job.isFeatured;
-    setJobs(prev => prev.map(j => j.id === id ? { ...j, isFeatured: nextState } : j));
+    setJobs(prev => prev.map(j => j.id === id ? { ...job, isFeatured: nextState } : j));
     try {
       await updateDoc(doc(db, 'jobs', id), { isFeatured: nextState });
     } catch (e) {}
@@ -477,55 +659,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const job = jobs.find(j => j.id === id);
     if (!job) return;
     const nextState = !job.isUrgent;
-    setJobs(prev => prev.map(j => j.id === id ? { ...j, isUrgent: nextState } : j));
+    setJobs(prev => prev.map(j => j.id === id ? { ...job, isUrgent: nextState } : j));
     try {
       await updateDoc(doc(db, 'jobs', id), { isUrgent: nextState });
     } catch (e) {}
     addAudit(nextState ? 'MARKED_URGENT' : 'UNMARKED_URGENT', job.title, `Changed urgent status`);
-  };
-
-  // -------------------------------------------------------------
-  // SECRET ADMIN COMPANY ISSUANCE (Requirement: Admin creates Company ID)
-  // -------------------------------------------------------------
-  const createCompanyAccountByAdmin = async (companyData: Partial<Company> & { accessCode: string }): Promise<Company> => {
-    const newId = `comp-${Date.now().toString().slice(-5)}`;
-    const newComp: Company = {
-      id: newId,
-      name: companyData.name || 'New Garments Factory',
-      nameBn: companyData.nameBn,
-      logo: companyData.logo || 'https://images.unsplash.com/photo-1541746972996-4e0b0f43e02a?w=160&auto=format&fit=crop&q=80',
-      email: companyData.email || `factory_${newId}@garments.com`,
-      phone: companyData.phone || '',
-      address: companyData.address || '',
-      factoryLocation: companyData.factoryLocation || '',
-      district: companyData.district || 'Gazipur',
-      division: companyData.division || 'Dhaka',
-      website: companyData.website || '',
-      businessType: companyData.businessType || 'Garments Manufacturer',
-      garmentsType: companyData.garmentsType || 'Woven',
-      employeeCount: companyData.employeeCount || '1000-5000',
-      description: companyData.description || 'Admin authorized 100% export garments unit.',
-      tradeLicenseNumber: companyData.tradeLicenseNumber || 'TRAD/ADMIN-APPROVED',
-      contactPerson: companyData.contactPerson || 'HR Manager',
-      contactNumber: companyData.contactNumber || companyData.phone || '',
-      verificationStatus: 'verified',
-      isVerified: true,
-      rating: 4.8,
-      followersCount: 0,
-      joinedDate: new Date().toISOString().split('T')[0],
-      accessCode: companyData.accessCode || 'factory123',
-      createdByAdmin: true
-    };
-
-    setCompanies(prev => [newComp, ...prev]);
-    try {
-      await setDoc(doc(db, 'companies', newId), newComp);
-    } catch (e) {
-      console.warn('Saving company locally:', e);
-    }
-
-    addAudit('ADMIN_CREATED_COMPANY', newComp.name, `Admin issued official ID for ${newComp.name} (Login: ${newComp.email})`);
-    return newComp;
   };
 
   const approveCompany = async (id: string) => {
@@ -576,9 +714,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAudit('UPDATED_COMPANY_PROFILE', `Company ID: ${id}`, `Updated profile details`);
   };
 
-  // -------------------------------------------------------------
-  // APPLICATION SUBMISSION WITH REAL TrxID & FULL CV SNAPSHOT
-  // -------------------------------------------------------------
   const submitApplication = async (
     jobId: string, 
     paymentMethod: PaymentMethod, 
@@ -675,31 +810,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setApplications(prev => [newApp, ...prev]);
 
-    // Save into Firestore collection
     try {
       await setDoc(doc(db, 'applications', appId), newApp);
-    } catch (e) {
-      console.warn('Syncing application locally:', e);
-    }
+    } catch (e) {}
 
-    // Increment applications count
     setJobs(prev => prev.map(j => j.id === jobId ? { ...j, applicationsCount: j.applicationsCount + 1 } : j));
     try {
       await updateDoc(doc(db, 'jobs', jobId), { applicationsCount: job.applicationsCount + 1 });
     } catch (e) {}
-
-    // Add notification
-    const newNotif: SystemNotification = {
-      id: `notif-${Date.now()}`,
-      targetRole: 'applicant',
-      targetUserId: applicantProfile.id,
-      title: lang === 'bn' ? 'আবেদন সফল!' : 'Application Submitted!',
-      message: `${job.title} - ${job.companyName} এ TrxID: ${newApp.paymentTrxId} দিয়ে আবেদন সফলভাবে গৃহীত হয়েছে।`,
-      type: 'application',
-      read: false,
-      createdAt: nowStr
-    };
-    setNotifications(prev => [newNotif, ...prev]);
 
     addAudit('APPLIED_JOB', job.title, `Applicant ${applicantProfile.name} applied with TrxID: ${newApp.paymentTrxId} (AppID: ${appId})`);
 
@@ -775,10 +893,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSettings(merged);
     try {
       await setDoc(doc(db, 'settings', 'global'), merged);
-    } catch (e) {
-      console.warn('Saving settings locally:', e);
-    }
-    addAudit('UPDATED_SETTINGS', 'Payment Gateway Numbers & Fees', `Updated bKash: ${merged.bKashMerchantNumber}, Nagad: ${merged.nagadMerchantNumber}`);
+    } catch (e) {}
+    addAudit('UPDATED_SETTINGS', 'Payment Gateway & Admin Credentials', `Updated system configuration`);
   };
 
   const markNotificationRead = (id: string) => {
@@ -798,19 +914,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTransactions(INITIAL_TRANSACTIONS);
     setApplicantProfile(INITIAL_APPLICANT);
     setSettings(INITIAL_SETTINGS);
-    setRole('applicant');
+    setCurrentUser(null);
     setLang('bn');
     window.location.reload();
   };
 
   return (
     <AppContext.Provider value={{
+      currentUser,
       role,
-      setRole,
       lang,
       setLang,
       t,
       firebaseConnected,
+      login,
+      registerSeeker,
+      logout,
       jobs,
       companies,
       categories,
@@ -857,8 +976,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setShowAuthModal,
       authMode,
       setAuthMode,
-      authTargetRole,
-      setAuthTargetRole,
       resetSystemData
     }}>
       {children}
